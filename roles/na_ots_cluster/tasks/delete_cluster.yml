@@ -1,0 +1,32 @@
+# --------------
+# Delete Cluster
+# --------------
+
+- name: .....delete cluster - {{ cluster_name }}
+
+  uri:
+    url: "{{ deploy_api_url }}/clusters/{{ cluster_id }}"
+    method: DELETE
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200,202,404
+    validate_certs: False
+
+  register: cluster_delete_response
+
+# --------------------------------------------------------
+# Monitor the deployment job IF specified
+# - setting to false will return the prompt for other work
+# --------------------------------------------------------
+
+- name: .....monitor cluster delete job
+  include_tasks: monitor_job.yml
+  vars:
+    job_id: "{{ cluster_delete_response.json.job.id }}"
+    job_retries: "{{ monitor_deploy_retries }}"
+    job_delay: "{{ monitor_deploy_delay }}"
+  when: 
+    - cluster_delete_response.json.job.id is defined

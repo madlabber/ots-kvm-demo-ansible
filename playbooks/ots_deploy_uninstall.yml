@@ -1,0 +1,116 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Destroys an ONTAP Select Deploy instance
+# 
+#######################################################
+---
+- hosts: deployservers
+  gather_facts: false
+  name: Build the ONTAP Deploy VM
+
+  tasks:
+
+  # disable autostart on the deploy vm
+  - name: Set autostart for a VM
+    community.libvirt.virt:
+      name: ontapdeploy
+      autostart: no
+    delegate_to: "{{ deploy_host }}"
+    ignore_errors: yes
+
+
+  # destroy the deploy vm
+  - name: stop vm
+    community.libvirt.virt:
+      name: ontapdeploy
+      state: destroyed
+    delegate_to: "{{ deploy_host }}"
+    ignore_errors: yes
+
+  # destroy the deploy vm
+  - name: undefine vm
+    community.libvirt.virt:
+      name: ontapdeploy
+      command: undefine
+    delegate_to: "{{ deploy_host }}"
+    ignore_errors: yes
+
+  # destroy the storage pool
+  - name: Destroy the storage pool
+    virt_pool:
+      command: destroy
+      name: deploy
+    delegate_to: "{{ deploy_host }}"
+    ignore_errors: yes
+
+  - name: undefine the storage pool
+    virt_pool:
+      command: undefine
+      name: deploy
+    delegate_to: "{{ deploy_host }}"
+    ignore_errors: yes
+
+  # delete the ontap deploy vm disk
+  - name: Remove the VM disk
+    ansible.builtin.file:
+      path: "{{deploy_dest}}/ONTAPdeploy.raw"
+      state: absent
+    delegate_to: "{{ deploy_host }}"
+
+  # - name: Remove deploy package 
+  #   ansible.builtin.file:
+  #     path: "{{deploy_dest}}/{{ deploy_package }}"
+  #     state: absent
+  #   delegate_to: "{{ deploy_host }}"
+
+
+
+#################################
+  # Make {{deploy_dir}}
+  # - name: Create destination directory
+  #   ansible.builtin.file:
+  #     path: "{{ deploy_dest }}"
+  #     state: directory
+  #   delegate_to: "{{ deploy_host }}"
+
+  # # copy {{deploy_package}} from {{deploy_source}} to {{deploy_dest}}
+  # - name: Tranfer deploy package to host
+  #   ansible.builtin.copy:
+  #     src: "{{deploy_src}}/{{deploy_package}}"
+  #     dest: "{{deploy_dest}}"
+  #     force: false
+  #   delegate_to: "{{ deploy_host }}"
+
+  # extract {{deploy_package}}
+  # !! EXTREMELY SLOW ON LARGE FILES !!
+  # - name: Unarchive a file on the remote machine
+  #   ansible.builtin.unarchive:
+  #     src: "{{deploy_src}}/{{deploy_package}}"
+  #     dest: "{{deploy_dest}}"
+  #     remote_src: yes
+  #     creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+  # - name: extract archive
+  #   command:
+  #     chdir: "{{deploy_dest}}"
+  #     cmd: "tar -xzvf {{deploy_package}}"
+  #     creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+  #   delegate_to: "{{ deploy_host }}"
+
+  # # virt install the deploy package
+  # - name: run virt-install
+  #   command:
+  #     cmd: virt-install --name=ontapdeploy --vcpus=2 --ram=4096 --os-type=linux --controller=scsi,model=virtio-scsi --disk path="{{deploy_dest}}/ONTAPdeploy.raw,device=disk,bus=scsi,format=raw" --network "type=bridge,source={{ovs_bridge}},model=virtio,virtualport_type=openvswitch" --console=pty --import --wait 0
+  #     creates: /etc/libvirt/qemu/ontapdeploy.xml
+  #   delegate_to: "{{ deploy_host }}"
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,244 @@
+---
+# - name: "Wait for OTS Cluster '{{ hostname }}' setup to complete and API connection to come online"
+#   wait_for:
+#     host:     "{{ hostname }}"
+#     port:     443
+#     timeout:  1500
+#     # sleep:    30
+#     sleep:    3
+#     # delay:    60
+#     delay:    6
+# tasks file for na-ontap-cluster-config
+- name: Get Ansible Server Time Info
+  set_fact:  
+    dd:       '{{ ansible_date_time.day }}'
+    mm:       '{{ ansible_date_time.month }}'
+    yyyy:     '{{ ansible_date_time.year }}'
+    hr:       '{{ ansible_date_time.hour }}'
+    mn:       '{{ ansible_date_time.minute }}'
+    ss:       '{{ ansible_date_time.second }}'
+    tz:       '{{ ansible_date_time.tz }}'
+- name: Sync CDOT to Ansible Server Time
+  na_ontap_command:
+    command: ['cluster date modify -dateandtime {{ yyyy }}{{ mm }}{{ dd }}{{ hr }}{{ mn }} -timezone {{ tz }}']
+# # Can't get this rest_cli to implement the ZAPI above
+# - name: run ontap rest cli command
+#   netapp.ontap.na_ontap_rest_cli:
+#     state:            present
+#     hostname:         "{{ netapp_hostname }}"
+#     username:         "{{ netapp_username }}"
+#     password:         "{{ netapp_password }}"
+#     https:            "{{ https }}"
+#     validate_certs:   "{{ validate_certs }}"
+#     command: 'cluster/date/modify'
+#     verb: 'PATCH'
+#     # params: {'vserver': 'ansibleSVM'}
+#     # params: {'dateandtime': '{{ yyyy }}{{ mm }}{{ dd }}{{ hr }}{{ mn }}', 'timezone': '{{ tz }}'}
+#     # body: {'message': 'test'}
+#     body: {'dateandtime': '{{ yyyy }}{{ mm }}{{ dd }}{{ hr }}{{ mn }}', 'timezone': '{{ tz }}'}
+- name: Configure '{{ cluster_name }}' Details
+  netapp.ontap.na_ontap_cluster:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    cluster_contact:  "{{ contact   | default(omit) }}"
+    cluster_location: "{{ location  | default(omit) }}"
+    timezone:
+      name:           "{{ timezone  | default(omit) }}"
+  when: contact is defined and contact != None
+- netapp.ontap.na_ontap_login_messages:
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    banner:           "{{ motd.banner | default(omit) }}"
+    motd_message:      "{{ motd.message | default(omit) }}"
+    show_cluster_motd: "{{ motd.show_cluster_motd | default('true') }}"
+  when: motd is defined and motd != None
+- name: Configure '{{ cluster_name }}' legacy licenses
+  netapp.ontap.na_ontap_license:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    license_codes:      "{{ license_codes }}"
+  when: license_codes is defined and license_codes != None
+# - name: Configure '{{ cluster_name }}' NLF licenses
+#   netapp.ontap.na_ontap_license:
+#     state:            present
+#     hostname:         "{{ netapp_hostname }}"
+#     username:         "{{ netapp_username }}"
+#     password:         "{{ netapp_password }}"
+#     https:            "{{ https }}"
+#     validate_certs:   "{{ validate_certs }}"
+#     license_codes:
+#       - "{{ lookup('file', item) | string }}"
+#   loop: "{{ license_path }}"
+#   when: license_path is defined and license_path != None
+- name: Configure '{{ cluster_name }}' DNS
+  netapp.ontap.na_ontap_dns:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    # vserver:          ""  # For cluster scoped vserver
+    vserver:          "{{ cluster_name      | default(omit) }}"  # For cluster scoped vserver
+    domains:          "{{ item.domains      | flatten }}"
+    nameservers:      "{{ item.nameservers  | flatten }}"
+    # domains:          "{{ item.domains      | join(',') }}"
+    # nameservers:      "{{ item.nameservers  | join(',') }}"
+    # domains:          "{{ item.domains }}"
+    # nameservers:      "{{ item.nameservers }}"
+    use_rest:         never
+  with_items:
+  - "{{ dns }}"
+  when: dns is defined and dns != None
+- name: Configure '{{ cluster_name }}' NTP
+  netapp.ontap.na_ontap_ntp:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    server_name:      "{{ item }}"
+    version:          "{{ item.version | default('auto') }}"
+  with_items:
+  - "{{ ntp }}"
+  when: ntp is defined and ntp != None
+- name: Configure '{{ cluster_name }}' SNMP communities
+  netapp.ontap.na_ontap_snmp:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    community_name:   "{{ item.community_name }}"
+    access_control:   "{{ item.access_control }}"
+  with_items:
+    "{{ snmp }}"
+  when: snmp is defined and snmp != None
+- name: Configure '{{ cluster_name }}' SNMP traphosts
+  netapp.ontap.na_ontap_snmp_traphosts:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    host:             "{{ item }}"
+  with_items:
+    "{{ snmp_traphosts }}"
+  when: snmp_traphosts is defined and snmp_traphosts != None
+- name: Configure '{{ cluster_name }}' Aggregates
+  netapp.ontap.na_ontap_aggregate:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    service_state:    online
+    name:             "{{ item.name }}"
+    nodes:            "{{ item.node }}"
+    disk_count:       "{{ item.disk_count }}"
+    raid_size:        "{{ item.raid_size }}"
+    raid_type:        "{{ item.raid_type      | default(omit) }}"
+    is_mirrored:      "{{ item.is_mirrored    | default(omit) }}"
+  with_items:
+    - "{{ aggrs }}"
+  when: aggrs is defined and aggrs != None
+  ignore_errors:      true
+- name: Remove ports from Default broadcast domain
+  netapp.ontap.na_ontap_ports:
+    state:            absent
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    names:            "{{ item.node }}:{{ item.port }}"
+    resource_type:    broadcast_domain
+    resource_name:    Default
+    ipspace:          Default
+    use_rest:         never
+  with_items:
+    - "{{ ports }}"
+  when: ports is defined and ports != None
+- name: Configure '{{ cluster_name }}' Net Ports
+  netapp.ontap.na_ontap_ports:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    names:          "{{ item.node }}:{{ item.port }}"
+    resource_type:  broadcast_domain
+    resource_name:  Default
+    ipspace:        Default
+  with_items:
+    - "{{ ports }}"
+  when: ports is defined and ports != None
+- name: Configure '{{ cluster_name }}' VLAN
+  netapp.ontap.na_ontap_net_vlan:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vlanid:           "{{ item.id }}"
+    node:             "{{ item.node }}"
+    parent_interface: "{{ item.port }}"
+  with_items:
+    - "{{ vlans }}"
+  when: vlans is defined and vlans != None
+- name: Configure '{{ cluster_name }}' Broadcast Domains
+  netapp.ontap.na_ontap_broadcast_domain:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    broadcast_domain: "{{ item.name }}"
+    mtu:              "{{ item.mtu      | default(9000) }}"
+    ipspace:          "{{ bcast_ipspace | default('Default')}}"
+    ports:            "{{ item.ports }}"
+    use_rest:         never
+  ignore_errors:      true
+  with_items:
+    - "{{ bcasts }}"
+  when: bcasts is defined and bcasts != None
+- name: Configure '{{ cluster_name }}' Intercluster Lifs
+  netapp.ontap.na_ontap_interface:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    interface_name:   "{{ item.name }}"
+    home_node:        "{{ item.node }}"
+    home_port:        "{{ item.port             | default(omit) }}"
+    admin_status:     up
+    failover_policy:  local-only
+    is_auto_revert:   false
+    address:          "{{ item.address }}"
+    netmask:          "{{ item.netmask }}"
+    ipspace:          "{{ item.ipspace          | default('Default') }}"
+    broadcast_domain: "{{ item.broadcast_domain | default(omit) }}"  # Mutually exclusive with home_port
+    service_policy:   "default-intercluster"
+  with_items:
+    - "{{ inters }}"
+  when: inters is defined and inters != None

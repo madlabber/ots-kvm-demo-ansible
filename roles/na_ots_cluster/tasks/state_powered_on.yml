@@ -1,0 +1,21 @@
+---
+# ---------------------------------------------------------------------------------------
+- name: Get cluster ID - {{ cluster_name }}
+  include_tasks: get_cluster_id.yml
+# ---------------------------------------------------------------------------------------
+- name: Get cluster state - {{ cluster_name }}
+  include_tasks: get_cluster_state.yml
+  when: cluster_id is defined
+# ---------------------------------------------------------------------------------------
+- name: Set cluster state - {{ cluster_name }} - powered_on
+  include_tasks: set_cluster_availability.yml
+  vars:
+    cluster_availability: "powered_on"
+    force_availability: false
+  when: 
+   - cluster_id is defined
+   - cluster_deployed
+   - cluster_get_response.json.record.state == "powered_off"
+# ---------------------------------------------------------------------------------------
+# END PLAYBOOK
+# ---------------------------------------------------------------------------------------

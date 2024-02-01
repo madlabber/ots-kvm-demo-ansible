@@ -1,0 +1,57 @@
+---
+# ---------------------------------------------------------------------------------------
+- name: Verify settings
+  include_tasks: verify.yml
+# ---------------------------------------------------------------------------------------
+- name: Add Vcenter credentials
+  include_tasks: add_vcenter_credential.yml
+  when:
+    - use_vcenter
+    - hypervisor == "ESX"
+# ---------------------------------------------------------------------------------------
+- name: Add ESXi host credentials (no vCenter )
+  include_tasks: add_credential.yml
+  with_items: "{{ esxi_hosts }}"
+  when:
+    - not use_vcenter
+    - hypervisor == "ESX"
+    - esxi_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Add KVM host credentials
+  include_tasks: add_credential.yml
+  with_items: "{{ kvm_hosts }}"
+  when:
+    - hypervisor == "KVM"
+    - kvm_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Get existing host IDs
+  include_tasks: get_host_ids.yml
+# ---------------------------------------------------------------------------------------
+- name: Register ESXi hosts (vCenter)
+  include_tasks: register_esx_vcenter_host.yml
+  with_items: "{{ esxi_hosts }}"
+  when:
+    - hypervisor == "ESX"
+    - use_vcenter
+    - esxi_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Register ESXi hosts (no vCenter)
+  include_tasks: register_host.yml
+  with_items: "{{ esxi_hosts }}"
+  when:
+    - hypervisor == "ESX"
+    - not use_vcenter
+    - esxi_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Register KVM hosts
+  include_tasks: register_host.yml
+  with_items: "{{ kvm_hosts }}"
+  when:
+    - hypervisor == "KVM"
+    - kvm_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Update host IDs list
+  include_tasks: get_host_ids.yml
+# ---------------------------------------------------------------------------------------
+# END PLAYBOOK
+# ---------------------------------------------------------------------------------------

@@ -1,0 +1,31 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Deletes an ONTAP Select cluster via an ONTAP Select Deploy instance
+# 
+#######################################################
+---
+- name: Delete ONTAP Select cluster
+  hosts: selectclusters
+  gather_facts: false
+  serial: 1
+
+  # -------------------
+  # Read variable files
+  # -------------------
+  vars_files:
+  # - vars_cluster.yml
+  # - vars_cluster_pwd.yml
+  tasks:
+    - include_role:
+        name: na_ots_cluster
+        apply:
+          delegate_to: localhost
+      vars:
+        state: absent
+        deploy_pwd: "{{ hostvars[deploy_hostname]['deploy_password'] }}"
+        deploy_ip: "{{ hostvars[deploy_hostname]['deploy_ip'] }}"
+        monitor_deploy_job: true
+

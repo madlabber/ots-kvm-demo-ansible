@@ -1,0 +1,97 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Installs an ONTAP Select Deploy instance
+# 
+#######################################################
+---
+- hosts: deployservers
+  gather_facts: false
+  name: Build the ONTAP Deploy VM
+
+  tasks:
+
+  # Make {{deploy_dir}}
+  - name: Create destination directory
+    ansible.builtin.file:
+      path: "{{ deploy_dest }}"
+      state: directory
+    delegate_to: "{{ deploy_host }}"
+
+  # copy {{deploy_package}} from {{deploy_source}} to {{deploy_dest}}
+  - name: Tranfer deploy package to host
+    ansible.builtin.copy:
+      src: "{{deploy_src}}/{{deploy_package}}"
+      dest: "{{deploy_dest}}"
+      force: false
+    delegate_to: "{{ deploy_host }}"
+
+  # extract {{deploy_package}}
+  # !! EXTREMELY SLOW ON LARGE FILES !!
+  # - name: Unarchive a file on the remote machine
+  #   ansible.builtin.unarchive:
+  #     src: "{{deploy_src}}/{{deploy_package}}"
+  #     dest: "{{deploy_dest}}"
+  #     remote_src: yes
+  #     creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+  - name: extract archive
+    command:
+      chdir: "{{deploy_dest}}"
+      cmd: "tar -xzvf {{deploy_package}}"
+      creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+    delegate_to: "{{ deploy_host }}"
+
+  # virt install the deploy package
+  - name: run virt-install
+    command:
+      cmd: virt-install --name=ontapdeploy --vcpus=2 --ram=4096 --os-type=linux --controller=scsi,model=virtio-scsi --disk path="{{deploy_dest}}/ONTAPdeploy.raw,device=disk,bus=scsi,format=raw" --network "type=bridge,source={{ovs_bridge}},model=virtio,virtualport_type=openvswitch" --console=pty --import --wait 0
+      creates: /etc/libvirt/qemu/ontapdeploy.xml
+    delegate_to: "{{ deploy_host }}"
+
+  # start the deploy vm
+  - name: start vm
+    community.libvirt.virt:
+      name: ontapdeploy
+      state: running
+    delegate_to: "{{ deploy_host }}"
+
+  # setting autostart on the deploy vm
+  - name: Set autostart for a VM
+    community.libvirt.virt:
+      name: ontapdeploy
+      autostart: yes
+    delegate_to: "{{ deploy_host }}"
+
+# wait a minute for startup
+  - name: Pause for a minute
+    ansible.builtin.pause:
+      minutes: "{{ deploy_boot_delay | default(2) }}"
+
+# Next use the virsh console to complete the VMs setup script:
+  - name: Expect
+    ansible.builtin.expect:
+      echo: yes
+      timeout: 60
+      command: virsh console ontapdeploy
+      responses:
+        (.*)Connected to domain(.*): "{{deploy_password}}" #the prompt typically appears prior to connecting
+        (.*)Provide a password(.*): "{{deploy_password}}"
+        (.*)Confirm the password(.*): "{{deploy_password}}"
+        Host name(.*): "{{deploy_hostname}}"
+        Use DHCP to set networking information(.*): "n"
+        Host IP address(.*): "{{deploy_ip}}"
+        Net mask(.*): "{{deploy_netmask}}"
+        Gateway(.*): "{{deploy_gateway}}"
+        Primary DNS address(.*): "{{deploy_dns1}}"
+        Secondary DNS address(.*): "{{deploy_dns2}}"
+        Please enter in all search domains separated by spaces(.*): "{{deploy_search_domains}}"
+        Are these values correct(.*): y
+        (.*)login(.*): admin
+        (.*)Password(.*): "{{deploy_password}}"
+        Enter Product Company(.*): "{{deploy_company}}"
+        Enter Proxy URL(.*): "{{deploy_proxy_url}}"
+        (ONTAPdeploy): "\x1d" # ctrl+]
+    register: expect_out
+    delegate_to: "{{ deploy_host }}"

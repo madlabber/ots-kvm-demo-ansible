@@ -1,0 +1,14 @@
+---
+netapp_hostname:
+netapp_password:
+netapp_username:
+https: true
+validate_certs: false
+vservers:
+vserver_dns:
+lifs:
+cifs:
+nfs:
+nvme:
+fcp:
+gateway:

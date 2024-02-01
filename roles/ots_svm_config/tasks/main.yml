@@ -1,0 +1,235 @@
+---
+# - name: debug vservers
+#   debug:
+#     msg: "{{ vservers }}"
+- name: Configure  {{item.name}} Vserver
+  netapp.ontap.na_ontap_svm:
+    state:              present
+    hostname:           "{{ netapp_hostname }}"
+    username:           "{{ netapp_username }}"
+    password:           "{{ netapp_password }}"
+    https:              "{{ https }}"
+    validate_certs:     "{{ validate_certs }}"
+    name:               "{{ item.name }}"
+    allowed_protocols:  "{{ item.protocol if item.protocol is defined else 'nfs' }}"
+    # root_volume:                "{{ item.name }}_root"
+    # root_volume_aggregate:      "{{ item.aggr }}"
+    # root_volume_security_style: "{{ 'ntfs' if item.protocol.lower() is search('cifs') else 'unix' }}"
+    # with REST, the 3 root_volume options above are not needed, and not supported
+    # aggr_list:         "{{ '*' if item.aggr_list is not defined else item.aggr_list }}"
+    ignore_rest_unsupported_options: true
+    admin_state:        "{{ item.admin_state      | default('running') }}"
+    language:           "{{ (item.language.lower() | replace('-','_')) if item.language is defined else omit }}"
+    max_volumes:        "{{ item.max_volumes      | default(omit) }}"
+    snapshot_policy:    "{{ item.snapshot_policy  | default(omit) }}"
+    comment:            "{{ item.comment          | default(omit) }}"
+  with_items:
+    "{{ vservers }}"
+  when: vservers != None
+- name: Configure '{{ svm.name }}' NVMe Service
+  netapp.ontap.na_ontap_nvme:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    status_admin:     true
+  with_items:
+    "{{ vservers }}"
+  when:
+    - item.protocol is defined and item.protocol is search("nvme".lower())
+# - name: debug nvme check
+#   debug: 
+#     msg: "NVME enabled"
+#   with_items:
+#     "{{ vservers }}"
+#   when:
+#     - item.protocol is defined and item.protocol is search("nvme".lower())
+- name: Configure '{{ svm.name }}' iSCSI Service
+  netapp.ontap.na_ontap_iscsi:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    service_state:    started
+    target_alias:     "{{ item.target_alias       | default(omit) }}"
+  with_items:
+    "{{ vservers }}"
+  when: item.protocol is search("iscsi".lower())
+
+##
+## FCP is not supported on OTS
+##
+# - name: Configure '{{ svm.name }}' FCP Service
+#   netapp.ontap.na_ontap_fcp:
+#     state:            present
+#     hostname:         "{{ netapp_hostname }}"
+#     username:         "{{ netapp_username }}"
+#     password:         "{{ netapp_password }}"
+#     https:            "{{ https }}"
+#     validate_certs:   "{{ validate_certs }}"
+#     vserver:          "{{ item.name }}"
+#     service_state:    started
+#   with_items:
+#     "{{ vservers }}"
+#   when: item.protocol is search("fcp".lower())
+# - name: Configure '{{ svm.name }}' FC adapter (target)
+#   netapp.ontap.na_ontap_ucadapter:
+#     state:            present
+#     hostname:         "{{ netapp_hostname }}"
+#     username:         "{{ netapp_username }}"
+#     password:         "{{ netapp_password }}"
+#     https:            "{{ https }}"
+#     validate_certs:   "{{ validate_certs }}"
+#     adapter_name:     "{{ item.adapter_name }}"
+#     node_name:        "{{ item.node_name }}"
+#     mode:             fc
+#     type:             target
+#   with_items:
+#     "{{ vservers.fcp }}"
+#   when: vservers.fcp|default(none) != None
+
+
+- name: Configure '{{ item.0.name }}' IP Interfaces
+  netapp.ontap.na_ontap_interface:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.0.name }}"
+    interface_name:   "{{ item.1.lif }}"
+    home_port:        "{{ item.1.port }}"
+    home_node:        "{{ item.1.node }}"
+    address:          "{{ item.1.address }}"
+    netmask:          "{{ item.1.netmask }}"
+    # role and protocols are deprecated
+    role:             "{{ omit if item.1.protocol is not defined else 'data' }}"
+    protocols:        "{{ item.1.protocol         | default(omit) }}"
+    admin_status:     up
+    failover_policy:  "{{ 'disabled' if (item.1.service_policy.lower() is search('iscsi')) or (item.1.service_policy.lower() is search('nvme')) else 'system-defined' }}"
+    # service_policy is prefered over firewall_policy
+    firewall_policy:  "{{ omit if item.1.service_policy is defined else 'data' }}"
+    is_auto_revert:   "{{ 'false' if (item.1.service_policy.lower() is search('iscsi')) or (item.1.service_policy.lower() is search('nvme')) else 'true' }}"
+    ipspace:          "{{ item.1.ipspace          | default(omit) }}"
+    broadcast_domain: "{{ item.1.broadcast_domain | default(omit) }}"
+    service_policy:   "{{ item.1.service_policy   | default(omit) }}"
+    # only a value of IP is supported for now.  But leave it open for FC.
+    interface_type:   "{{ item.1.interface_type   | default(omit) }}"
+  loop: "{{ vservers|subelements('lifs', skip_missing=True) }}"
+
+- name: Configure '{{ svm.name }}' Gateway for default route
+  netapp.ontap.na_ontap_net_routes:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.0.name }}"
+    destination:      "{{ item.1.destination }}"
+    gateway:          "{{ item.1.gateway }}"
+    metric:           "{{ item.1.metric | default(30)}}"
+  loop: "{{ vservers|subelements('routes', skip_missing=True) }}"
+
+
+- name: Configure '{{ svm.name }}' DNS
+  netapp.ontap.na_ontap_dns:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    domains:          "{{ item.domains|default('')|flatten }}"
+    nameservers:      "{{ item.nameservers|flatten }}"
+    skip_validation:  true
+  with_items:
+    "{{ vservers }}"
+  when: 
+   - item.nameservers is defined
+   - item.nameservers != None 
+
+- name: Configure '{{ svm.name }}' CIFS Server
+  netapp.ontap.na_ontap_cifs_server:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    domain:           "{{ item.cifs.domain }}"
+    admin_password:   "{{ admin_password }}"
+    admin_user_name:  "{{ admin_username }}"
+    ou:               "{{ item.cifs.ou               | default(omit) }}"
+    cifs_server_name: "{{ item.cifs.cifs_server_name if item.cifs.cifs_server_name != '' else item.name }}"
+    force:            "{{ 'false' if item.cifs.force is not defined else item.cifs.force }}"
+    service_state:    "{{ item.cifs.service_state    | default('started') }}"
+  with_items:
+    "{{ vservers }}"
+  when: 
+  - item.cifs is defined
+  - item.cifs != None
+
+- name: Configure '{{ svm.name }}' CIFS Domain Tunnel
+  netapp.ontap.na_ontap_domain_tunnel:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+  with_items:
+    "{{ vservers }}"
+  when:
+  - item.cifs.domain_tunnel|default(false)
+
+- name: Configure '{{ svm.name }}' NFS Server
+  netapp.ontap.na_ontap_nfs:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    service_state:    started
+    nfsv3:            "{{ item.nfs.nfsv3  | default('enabled') }}"
+    nfsv4:            "{{ item.nfs.nfsv4  | default('enabled') }}"
+    nfsv41:           "{{ item.nfs.nfsv41 | default('disabled') }}"
+    tcp:              enabled
+    udp:              disabled
+    vstorage_state:   "{{ item.nfs.vstorage | default('disabled') }}"
+  with_items:
+    "{{ vservers }}"
+  when:
+    - item.protocol is search("nfs".lower())
+
+- name: Configure '{{ svm.name }}' default export-policy for RO
+  netapp.ontap.na_ontap_export_policy_rule:
+    state:            present
+    hostname:         "{{ netapp_hostname }}"
+    username:         "{{ netapp_username }}"
+    password:         "{{ netapp_password }}"
+    https:            "{{ https }}"
+    validate_certs:   "{{ validate_certs }}"
+    vserver:          "{{ item.name }}"
+    policy_name:      default
+    client_match:     0.0.0.0/0
+    rule_index:       1
+    ro_rule:          any
+    rw_rule:          none
+    protocol:         any
+  with_items:
+    "{{ vservers }}"
+  when:
+    - item.protocol is search("nfs".lower())

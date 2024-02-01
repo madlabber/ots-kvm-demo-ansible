@@ -1,0 +1,134 @@
+all:
+  hosts:
+  vars:
+    ansible_connection: ssh
+    ansible_user: root
+    ansible_ssh_pass: P@ssw0rd
+  children:
+    kvmhosts:
+      hosts:
+        192.168.0.41:
+      vars:
+        rdo_repo_url: "https://www.rdoproject.org/repos/rdo-release.el8.rpm"
+        virsh_pool_dev: "/dev/sdb"
+        storage_pool: "select_pool"
+        ovs_bridge: "br0"
+        ovs_bond: "bond0"
+        ovs_bond_mtu: "9000"
+        ovs_bond_ports: 
+          - "ens33"
+    deployservers:
+      hosts:
+        deploy:
+          deploy_host: 192.168.0.41
+          ovs_bridge: br0
+          deploy_hostname: "deploy"
+          deploy_ip: 192.168.0.99
+      vars:
+          deploy_package: ONTAPSELECT_9141RC1.raw.tgz
+          deploy_src: /root/Downloads
+          deploy_dest: /opt/deploy
+          deploy_password: P@ssw0rd
+          deploy_netmask: 255.255.255.0
+          deploy_gateway: 192.168.0.1
+          deploy_dns1: 192.168.0.1
+          deploy_dns2: 192.168.0.11
+          deploy_search_domains: "" # space separated list
+          deploy_company: "demo"  # for ASUP
+          deploy_proxy_url: ""    # for ASUP
+          deploy_boot_delay: 1 # minutes to wait for vm to startup
+    selectclusters:
+      vars:
+        deploy_hostname: deploy
+        use_vcenter: false
+        hypervisor: KVM
+        kvm_hosts:
+          - host_name: 192.168.0.41
+            host_login: root
+        host_kvm_password: "P@ssw0rd"
+        ontap_pwd: "P@ssw0rd"
+        mgt_network: "br0"
+        data_network: "br0"
+        internal_network: "br0"
+        internal_network_vlan: 
+        cluster_netmask: "255.255.255.0"
+        cluster_gateway: "192.168.0.1"
+        cluster_ontap_image: "9.14.1RC1"
+        cluster_ntp:
+          - "192.168.0.1"
+        cluster_dns_ips:
+          - "10.61.0.11"
+        cluster_dns_domains:
+          - "lab.local"
+      hosts:
+        demo1:
+          node_count: 1
+          cluster_name: "demo1"
+          cluster_ip: "192.168.0.200"
+          instance_type: "small"
+          cpu_reservation_percentage: 25
+          kvm_hosts:
+            - host_name: 192.168.0.41
+              host_login: root
+          cluster_nodes:
+            - node_name: "{{ cluster_name }}-01"
+              ipAddress: 192.168.0.201
+              storage_pool: select_pool
+              capacityTB: 1.2
+              host_name: 192.168.0.41
+
+    ontapclusters:
+      vars:
+        ansible_connection: local
+      hosts:
+        demo1:
+          location:       Demo Lab
+          contact:        "bofh@madlabber.com"
+          motd:
+            banner: |
+              ################ TEST BANNER ################      
+              # This system is for demonstration use only #
+              #############################################
+            message: |
+              Welcome!
+              Please note: This system is demonstration use only!
+          timezone: America/Los_Angeles
+          snmp:
+            - community_name: public
+              access_control: ro
+          snmp_traphosts:
+            - 192.168.0.11
+          aggrs:
+          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 1, raid_size: 6, is_mirrored: false }
+          # referencing the nested variables causes a recurive error - keeping seperate for dev
+          inters:
+          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 192.168.0.202, netmask: 255.255.255.0 }
+
+          vservers:
+            - name: vs0
+              protocol:
+                - iscsi
+                - nfs
+                - nvme
+                - cifs
+              lifs:
+              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.0.203, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.0.204, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 192.168.0.205, node: '{{ cluster_name }}-01', port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 192.168.0.1, metric: 20}
+              nameservers:
+              - 192.168.0.1
+              - 192.168.0.11
+              domains:
+              - lab.local
+              cifs:
+                cifs_server_name: demo1vs0
+                ou:
+                domain: lab.local
+                domain_tunnel: false
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled
+

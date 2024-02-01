@@ -1,0 +1,46 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Stages, but does not install, an ONTAP Select Deploy instance
+# 
+#######################################################
+---
+- hosts: deployservers
+  gather_facts: false
+  name: Build the ONTAP Deploy VM
+
+  tasks:
+
+  # Make {{deploy_dir}}
+  - name: Create destination directory
+    ansible.builtin.file:
+      path: "{{ deploy_dest }}"
+      state: directory
+    delegate_to: "{{ deploy_host }}"
+
+  # copy {{deploy_package}} from {{deploy_source}} to {{deploy_dest}}
+  - name: Tranfer deploy package to host
+    ansible.builtin.copy:
+      src: "{{deploy_src}}/{{deploy_package}}"
+      dest: "{{deploy_dest}}"
+      force: false
+    delegate_to: "{{ deploy_host }}"
+
+  # extract {{deploy_package}}
+  # !! EXTREMELY SLOW ON LARGE FILES !!
+  # - name: Unarchive a file on the remote machine
+  #   ansible.builtin.unarchive:
+  #     src: "{{deploy_src}}/{{deploy_package}}"
+  #     dest: "{{deploy_dest}}"
+  #     remote_src: yes
+  #     creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+  - name: extract archive
+    command:
+      chdir: "{{deploy_dest}}"
+      cmd: "tar -xzvf {{deploy_package}}"
+      creates: "{{deploy_dest}}/ONTAPdeploy.raw"
+    delegate_to: "{{ deploy_host }}"
+
+  

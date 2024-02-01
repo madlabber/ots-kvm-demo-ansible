@@ -1,0 +1,174 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Prepares Enterprise Linux servers to host ONTAP Select nodes
+# 
+#######################################################
+---
+- hosts: kvmhosts 
+  gather_facts: true
+  name: Prepare KVM hosts 
+  vars:
+  tasks:
+
+# Install RDO repo for ovs components
+  - name: Install RDO repo
+    ansible.builtin.yum:
+      name: "{{ rdo_repo_url }}"
+      state: present
+      disable_gpg_check: true
+
+
+# Install Dependancies
+  - name: Update and install required system packages
+    ansible.builtin.package:
+      name:
+        - python3
+        - python3-devel
+        - qemu-kvm
+        - libvirt
+        - libvirt-devel
+        - virt-install
+        - lshw
+        - lsscsi
+        - lsof
+        - libibverbs
+        - NetworkManager-ovs
+        - openvswitch
+        - sshpass
+      state: latest # Should be `present` with version parameter or `update_only: true`
+      update_cache: true
+
+# pip install lxml
+  - name: pip install lxml
+    pip:
+      name: lxml
+
+# pip install libvirt-python
+  - name: pip install libvirt-python
+    pip:
+      name: libvirt-python
+
+# pip install pexpect
+  - name: pip install pexpect
+    pip:
+      name: pexpect
+
+# Set qemu user and group
+  - name: Configure qemu user
+    ansible.builtin.lineinfile:
+      path: /etc/libvirt/qemu.conf
+      state: present
+      search_string: '#user ='
+      line: 'user = "root"'
+  - name: Configure qemu group
+    ansible.builtin.lineinfile:
+      path: /etc/libvirt/qemu.conf
+      state: present
+      search_string: '#group ='
+      line: 'user = "root"'
+
+# start and enable libvirtd
+## systemctl enable libvirtd --now
+  - name: Make sure libvirtd is running
+    systemd:
+      state: started
+      name: libvirtd
+  - name: enable libvertd and ensure it is not masked
+    systemd:
+      name: libvirtd
+      enabled: yes
+      masked: no
+
+# start and enable openvswitch
+## systemctl enable openvswitch --now
+  - name: Make sure openvswitch is running
+    systemd:
+      state: started
+      name: openvswitch
+  - name: enable openvswitch and ensure it is not masked
+    systemd:
+      name: openvswitch
+      enabled: yes
+      masked: no
+
+# configure udev rules
+  - name: set queue length rules
+    lineinfile:
+      path: /etc/udev/rules.d/99-ontaptxqueuelen.rules
+      line: 'SUBSYSTEM=="net", ACTION=="add", KERNEL=="ontapn*", ATTR{tx_queue_len}="5000"'
+      create: yes
+
+# Create the storage pool
+  # - name: Run command virsh pool-define-as
+  #   command:
+  #     cmd: "virsh pool-define-as {{storage_pool}} logical --source-dev {{ virsh_pool_dev }} --target=/dev/{{storage_pool}}"
+  #     creates: "/etc/libvirt/storage/{{storage_pool}}.xml"
+  - name: define virsh pool
+    community.libvirt.virt_pool:
+      command: define
+      name: "{{ storage_pool }}"
+      xml: |
+        <pool type='logical'>
+          <name>{{ storage_pool }}</name>
+          <capacity unit='bytes'>0</capacity>
+          <allocation unit='bytes'>0</allocation>
+          <available unit='bytes'>0</available>
+          <source>
+            <device path='{{ virsh_pool_dev }}'/>
+            <name>{{ storage_pool }}</name>
+            <format type='lvm2'/>
+          </source>
+          <target>
+            <path>/dev/{{ storage_pool }}</path>
+          </target>
+        </pool>
+
+  - name: Build the storage pool
+    virt_pool:
+      command: build
+      name: "{{storage_pool}}"
+    ignore_errors: yes
+  - name: Activate the storage pool
+    virt_pool:
+      state: active
+      name: "{{storage_pool}}"
+  - name: Auto start the storage pool
+    virt_pool:
+      autostart: yes
+      name: "{{storage_pool}}"
+  - name: add volume to keep pool alive
+    command:
+      cmd: virsh vol-create-as --pool "{{storage_pool}}" --name keepalive --capacity 1g
+      creates: "/dev/{{storage_pool}}/keepalive"
+    
+# create ovs bridge
+# This version assumes a dedicated mgmt port
+  - openvswitch.openvswitch.openvswitch_bridge:
+      bridge: "{{ ovs_bridge }}"
+      state: present
+  - openvswitch.openvswitch.openvswitch_bond:
+      bridge: "{{ ovs_bridge }}"
+      port: "{{ ovs_bond }}"
+      interfaces: "{{ ovs_bond_ports }}"
+      state: present
+    when: ovs_bond_ports | count > 1
+  - openvswitch.openvswitch.openvswitch_port:
+      bridge: "{{ ovs_bridge }}"
+      port: "{{ item }}"
+      state: present
+    with_items: "{{ ovs_bond_ports }}"
+    when: ovs_bond_ports | count == 1
+
+
+
+# the openvswitch module does not appear to support managing interfaces
+  - name: Set interface MTU
+    command:
+      cmd: "ovs-vsctl set int {{item}} mtu_request={{ovs_bond_mtu}}"
+    with_items: "{{ ovs_bond_ports }}"
+
+  
+

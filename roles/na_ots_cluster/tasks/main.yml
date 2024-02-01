@@ -1,0 +1,28 @@
+---
+# ---------------------------------------------------------------------------------------
+- name: Create cluster
+  include_tasks: state_present.yml
+  when: state|lower == "present" or state|lower == "constructing"
+# ---------------------------------------------------------------------------------------
+- name: Delete cluster
+  include_tasks: state_absent.yml
+  when: state|lower == "absent"
+# ---------------------------------------------------------------------------------------
+- name: Power Off cluster
+  include_tasks: state_powered_off.yml
+  when: state|lower == "powered_off"
+# ---------------------------------------------------------------------------------------
+- name: Power On cluster
+  include_tasks: state_powered_on.yml
+  when: state|lower == "powered_on"
+# ---------------------------------------------------------------------------------------
+- name: Register Hosts
+  include_tasks: state_hosts_present.yml
+  when: state|lower == "hosts_present"
+# ---------------------------------------------------------------------------------------
+- name: Delete Hosts
+  include_tasks: state_hosts_absent.yml
+  when: state|lower == "hosts_absent"
+# ---------------------------------------------------------------------------------------
+# END PLAYBOOK
+# ---------------------------------------------------------------------------------------

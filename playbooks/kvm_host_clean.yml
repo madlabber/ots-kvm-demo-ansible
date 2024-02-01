@@ -1,0 +1,173 @@
+#######################################################
+# 
+#   Author:     Sean Hatfield
+#   Date:       Feb 1 2024
+# 
+#   Description:  Playbook that reverts most changes performed during host prep
+# 
+#######################################################
+---
+- hosts: kvmhosts 
+  gather_facts: true
+  name: Prepare KVM hosts 
+  vars:
+    deploy_login: admin
+    deploy_hostname: "{{ hostvars[groups['deployservers'][0]].inventory_hostname }}"
+    deploy_password: "{{ hostvars[deploy_hostname]['deploy_password'] }}"
+    deploy_ip: "{{ hostvars[deploy_hostname]['deploy_ip'] }}"
+    deploy_api_url: "https://{{ deploy_ip }}/api/v3"
+    hypervisor: KVM
+    host_kvm_password: "{{ansible_ssh_pass}}"
+
+  tasks:
+
+  # - include_tasks: ../roles/na_ots_cluster/tasks/delete_host.yml
+  #   vars:
+  #     deploy_user: "admin"
+  #     deploy_pwd: "{{ deploy_password }}"
+  #     monitor_host_delay: 60
+  #     monitor_host_retries: 10
+  #   with_items:
+  #   - { host_login: root, host_name: "{{inventory_hostname}}" }
+  #   ignore_errors: true
+  
+  # remove ovs bridge
+  - openvswitch.openvswitch.openvswitch_bond:
+      bridge: "{{ ovs_bridge }}"
+      port: "{{ ovs_bond }}"
+      # interfaces: "{{ ovs_bond_ports }}"
+      state: absent
+    ignore_errors: true
+  - openvswitch.openvswitch.openvswitch_bridge:
+      bridge: "{{ ovs_bridge }}"
+      state: absent
+    ignore_errors: true
+
+# Delete the storage pool
+  - name: Delete keepalive volume
+    command:
+      cmd: virsh vol-delete --pool "{{storage_pool}}" keepalive 
+      removes: "/dev/{{storage_pool}}/keepalive"
+
+# Delete any debris from the storage pool volume:
+  - shell: "/bin/rm -rf /dev/{{storage_pool}}/*"
+
+  - name: Stop the storage pool
+    virt_pool:
+      command: destroy
+      name: "{{storage_pool}}"
+    ignore_errors: true
+
+  - name: Delete the storage pool
+    virt_pool:
+      command: delete
+      name: "{{storage_pool}}"
+    ignore_errors: true
+
+  - name: Undefine the storage pool
+    virt_pool:
+      command: undefine
+      name: "{{storage_pool}}"
+    ignore_errors: true
+
+# delete the storage pool with prejudice
+  - name: Remove file (delete file)
+    ansible.builtin.file:
+      path: "/bin/rm /etc/libvirt/storage/{{storage_pool}}.xml"
+      state: absent
+
+  - name: Remove file (delete file)
+    ansible.builtin.file:
+      path: "/bin/rm /etc/libvirt/storage/autostart/{{storage_pool}}.xml"
+      state: absent
+
+  - shell: "/bin/rm -rf /dev/{{storage_pool}}"
+    ignore_errors: true
+  - shell: "/usr/sbin/vgremove {{storage_pool}}"
+    ignore_errors: true
+  - shell: "/usr/sbin/pvremove {{virsh_pool_dev}}" 
+    ignore_errors: true 
+
+# remove udev rules
+  - name: remove queue length rules
+    lineinfile:
+      path: /etc/udev/rules.d/99-ontaptxqueuelen.rules
+      line: 'SUBSYSTEM=="net", ACTION=="add", KERNEL=="ontapn*", ATTR{tx_queue_len}="5000"'
+      state: absent
+
+  - name: disable openvswitch 
+    systemd:
+      name: openvswitch
+      enabled: no
+      masked: no
+    ignore_errors: true
+  - name: stop openvswitch 
+    systemd:
+      state: stopped
+      name: openvswitch
+    ignore_errors: true
+
+  - name: disable libvirtd 
+    systemd:
+      name: libvirtd
+      enabled: no
+      masked: no
+    ignore_errors: true
+  - name: stop libvirtd 
+    systemd:
+      state: stopped
+      name: libvirtd
+    ignore_errors: true
+
+# pip install lxml
+  - name: pip remove lxml
+    pip:
+      name: lxml
+      state: absent
+
+# Unset default python
+  # - name: Unset default python
+  #   community.general.alternatives:
+  #     name: python
+  #     path: /usr/bin/python3
+  #     link: /usr/bin/python
+  #     state: absent
+
+# Install Dependancies
+  - name: remove required system packages
+    ansible.builtin.package:
+      name:
+        # - python3
+        - qemu-kvm
+        - libvirt
+        - virt-install
+        - lshw
+        - lsscsi
+        - lsof
+        - libibverbs
+        - NetworkManager-ovs
+        - openvswitch
+        # - sshpass
+      state: absent # Should be `present` with version parameter or `update_only: true`
+      update_cache: true
+
+# Remove RDO repo components
+  - name: Remove RDO repo rpm
+    shell:
+      cmd: yum remove -y `rpm -qa | grep rdo`
+    ignore_errors: true
+
+  - name: Remove RDO repositories
+    shell:
+      cmd: rm -rf /etc/yum.repos.d/rdo*
+    ignore_errors: true
+
+  - name: yum clean all
+    shell:
+      cmd: yum clean all
+    ignore_errors: true
+  
+
+
+
+

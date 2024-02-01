@@ -1,0 +1,45 @@
+# ----------------------------------
+# Delete Host
+# - ESXi host 
+# - KVM host
+# ----------------------------------
+
+# ------------------------------------------------------
+# Check the host_id_list for existing registered hosts
+# If the specified host is in the list then delete
+# - host_id_list is created by get_host_ids task
+# ------------------------------------------------------
+- name: Update host IDs list
+  include_tasks: get_host_ids.yml
+
+
+- name: Delete Host - {{ item.host_name }}
+#- name: Delete Host
+  uri:
+    url: "{{ deploy_api_url }}/hosts/{{ lookup('template', 'host2id.j2') | trim }}"
+    method: DELETE
+    headers:
+      Content-Type: "application/json"
+    body: 
+    body_format: json
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200
+    validate_certs: False
+  register: host_delete_response
+  when: item.host_name in ( host_id_list | map(attribute='host_name') )
+
+# ----------------------------
+# Monitor the delete  job
+# ----------------------------
+
+- name: .....monitor host delete job
+
+  include_tasks: monitor_job.yml
+  vars:
+    job_id: "{{ host_delete_response.json.job.id }}"
+    job_retries: "{{ monitor_host_retries |default(10) }}"
+    job_delay: "{{ monitor_host_delay |default(15)}}"
+  when:
+    - item.host_name in ( host_id_list | map(attribute='host_name') )
+    - host_delete_response.json.job.id |default("") != ""

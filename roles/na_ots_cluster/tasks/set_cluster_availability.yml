@@ -1,0 +1,46 @@
+- name: .....Clear forced
+  set_fact:
+    forced: ""
+    
+- name: .....Set forced
+  set_fact:
+    forced: "?force=state"
+  when:
+    - force_availability|default(false)|bool
+
+# ------------------------
+# Set cluster availability 
+# ------------------------
+
+- name: .....set cluster availability
+
+  uri:
+    url: "{{ deploy_api_url }}/clusters/{{ cluster_id }}{{forced}}"
+    method: PATCH
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      availability: "{{ cluster_availability }}"
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200,202
+    validate_certs: False
+
+  register: cluster_set_response
+
+
+# ---------------
+# Monitor the job
+# ---------------
+
+- name: .....monitor cluster availability job
+
+  include_tasks: monitor_job.yml
+  vars:
+    job_id: "{{ cluster_set_response.json.job.id }}"
+    job_retries: "{{ monitor_availability_retries }}"
+    job_delay: "{{ monitor_availability_delay }}"
+  when:
+    - cluster_set_response.json.job.id is defined
+

@@ -1,0 +1,25 @@
+---
+# ---------------------------------------------------------------------------------------
+- name: Verify settings
+  include_tasks: verify.yml
+# ---------------------------------------------------------------------------------------
+- name: Get existing host IDs
+  include_tasks: get_host_ids.yml
+# ---------------------------------------------------------------------------------------
+- name: Delete ESXi hosts (no vCenter)
+  include_tasks: delete_host.yml
+  with_items: "{{ esxi_hosts }}"
+  when:
+    - hypervisor == "ESX"
+    # - not use_vcenter
+    - esxi_hosts != none
+# ---------------------------------------------------------------------------------------
+- name: Delete KVM hosts
+  include_tasks: delete_host.yml
+  with_items: "{{ kvm_hosts }}"
+  when:
+    - hypervisor == "KVM"
+    - kvm_hosts != none
+# ---------------------------------------------------------------------------------------
+# END PLAYBOOK
+# ---------------------------------------------------------------------------------------

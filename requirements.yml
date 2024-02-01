@@ -1,0 +1,15 @@
+---
+# Run `ansible-galaxy install -r requirements.yml`
+collections:
+# Install with just the collection name
+- community.general
+#- ansible.builtin
+- ansible.posix
+- community.libvirt
+- name: netapp.ontap
+  version: "=22.7.0" # need to revisit some of the changes in 22.8.0+
+- community.libvirt
+
+# Example with version example
+# - name: netapp.ontap
+#   version: ">=22.2.0" # Optional version identifiers (default: ``*``)

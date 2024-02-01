@@ -1,0 +1,36 @@
+---
+netapp_hostname:
+netapp_password:
+netapp_username:
+https: true
+validate_certs: false
+license_codes:
+dns:
+ntp:
+snmp:
+aggrs:
+ports:
+vlans:
+inters:
+cluster_name: temp
+autonegotiate: true
+flowcontrol: none
+bcasts:
+# bcasts:  #deploy defaults
+# - name: Default
+#   mtu: 1500
+#   ports:
+#     - "{{ cluster_name }}-01:e0a"
+#     - "{{ cluster_name }}-02:e0a" 
+#     - "{{ cluster_name }}-03:e0a" 
+#     - "{{ cluster_name }}-04:e0a" 
+#     - "{{ cluster_name }}-01:e0b"
+#     - "{{ cluster_name }}-02:e0b" 
+#     - "{{ cluster_name }}-03:e0b" 
+#     - "{{ cluster_name }}-04:e0b" 
+#     - "{{ cluster_name }}-01:e0g"
+#     - "{{ cluster_name }}-02:e0g" 
+#     - "{{ cluster_name }}-03:e0g" 
+#     - "{{ cluster_name }}-04:e0g" 
+bcast_ipspace: Default
+mtu: 9000

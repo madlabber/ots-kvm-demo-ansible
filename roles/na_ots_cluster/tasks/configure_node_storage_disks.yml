@@ -1,0 +1,139 @@
+# --------------------------------------------------------------------------------------------
+# Configure Node Storage Disks
+# --------------------------------------------------------------------------------------------
+# 1. If node's 'host_disks' is not provided, attach all available SSD in the host to the node.
+# 2. If node's 'host_disks' is provided, attach only those disks.
+# --------------------------------------------------------------------------------------------
+
+#------------------------------
+# check for existing node disks
+#------------------------------
+
+- name: .....check for existing storage disks
+
+  uri:
+    url: "{{ deploy_api_url }}/clusters/{{ cluster_id }}/nodes/{{ outeritem.node_id }}/storage/disks"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200
+    validate_certs: False
+
+  register: check_storage_disks_response
+
+
+# ----------------------------------------------------------------------
+# Detach existing storage disks IF they exist
+# - This will only occur if the cluster did not successfully deploy and 
+#   the task is being re-executed
+# ----------------------------------------------------------------------
+
+- name: .....detach existing storage disks
+
+  uri:
+    url: "{{ deploy_api_url }}/clusters/{{ cluster_id }}/nodes/{{ outeritem.node_id }}/storage/disks/{{ nodedisk.id }}"
+    method: DELETE
+    headers:
+      Content-Type: "application/json"
+    body: "{}"
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200,202
+    validate_certs: False
+  loop: "{{ check_storage_disks_response.json.records }}"
+  loop_control:
+    loop_var: nodedisk
+  when:
+    - check_storage_disks_response.json.num_records > 0
+
+
+# ---------------------------------------------
+# Retreive the available disks in the host
+# ---------------------------------------------
+
+- name: Get Host Disks - {{ item.host_name }}
+
+  uri:
+    url: "{{ deploy_api_url }}/hosts/{{ lookup('template', 'host2id.j2') | trim }}/storage/disks"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+    body: 
+    body_format: json
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 200
+    validate_certs: False
+  when: item.host_name in ( host_id_list | map(attribute='host_name') )
+
+  register: host_storage_disks_response
+
+
+# -----------------------------------------------------------------------
+# If node's host_disks were not provided, select all available host disks
+# -----------------------------------------------------------------------
+
+- name: .....Select all host disks
+
+  set_fact: 
+    host_disks: '{{host_storage_disks_response.json.records | selectattr("device_type", "equalto", "SSD") | ansible.utils.remove_keys(target=["device_type"]) }}'
+  when:
+    - item.host_disks|default([]) | length == 0
+
+
+# ----------------------------------------------------------------------
+# If node's host_disks were provided as a dictionary, use is as provided
+# ----------------------------------------------------------------------
+
+- name: .....Select specified host_disks
+  set_fact:
+    host_disks: "{{ item.host_disks }}"
+  when:
+    - item.host_disks is defined
+    - item.host_disks | length > 0
+    - item.host_disks.0.name is defined
+
+
+# ---------------------------------------------------------------------
+# If node's host_disks were provided as a simple list, add the name key
+# ---------------------------------------------------------------------
+
+- name: .....Select specified host_disks list
+  set_fact:
+    #host_disks: '{{ item.host_disks | map("community.general.dict_kv", "name") }}'
+    host_disks: "{{ ['name'] | product(item.host_disks) | map('join', ': ') | map('from_yaml') }}"
+  when:
+    - item.host_disks is defined
+    - item.host_disks | length > 0
+    - item.host_disks | type_debug == "list"
+    - item.host_disks.0.name is not defined
+
+
+# -------------------------
+# Attach host disks to node
+# -------------------------
+
+- name: .....attach host disks
+
+  uri:
+    url: "{{ deploy_api_url }}/clusters/{{ cluster_id }}/nodes/{{ outeritem.node_id }}/storage/disks?remove_disk_labels=true"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body:
+      disks: "{{ host_disks }}"
+    body_format: json
+    user: "{{ deploy_login }}"
+    password: "{{ deploy_pwd }}"
+    status_code: 201,202
+    validate_certs: False
+  when:
+    - host_disks is defined
+    - host_disks | length > 0
+
+  register: configure_node_storage_disk_response
+
+
