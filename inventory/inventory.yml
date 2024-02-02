@@ -8,6 +8,8 @@ all:
     kvmhosts:
       hosts:
         192.168.0.41:
+        192.168.0.42:
+        192.168.0.43:
       vars:
         rdo_repo_url: "https://www.rdoproject.org/repos/rdo-release.el8.rpm"
         virsh_pool_dev: "/dev/sdb"
@@ -76,6 +78,21 @@ all:
               storage_pool: select_pool
               capacityTB: 1.2
               host_name: 192.168.0.41
+        demo2:
+          node_count: 1
+          cluster_name: "demo2"
+          cluster_ip: "192.168.0.210"
+          instance_type: "small"
+          cpu_reservation_percentage: 25
+          kvm_hosts:
+            - host_name: 192.168.0.42
+              host_login: root
+          cluster_nodes:
+            - node_name: "{{ cluster_name }}-01"
+              ipAddress: 192.168.0.211
+              storage_pool: select_pool
+              capacityTB: 1.2
+              host_name: 192.168.0.42
 
     ontapclusters:
       vars:
@@ -110,7 +127,7 @@ all:
                 - iscsi
                 - nfs
                 - nvme
-                - cifs
+                # - cifs
               lifs:
               - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.0.203, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
               - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.0.204, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
@@ -122,13 +139,63 @@ all:
               - 192.168.0.11
               domains:
               - lab.local
-              cifs:
-                cifs_server_name: demo1vs0
-                ou:
-                domain: lab.local
-                domain_tunnel: false
+              # cifs:
+              #   cifs_server_name: demo1vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: false
               nfs:
                 nfsv3: enabled
                 nfsv4: enabled
                 nfsv41: disabled
 
+        demo2:
+          location:       Demo Lab
+          contact:        "bofh@madlabber.com"
+          motd:
+            banner: |
+              ################ TEST BANNER ################      
+              # This system is for demonstration use only #
+              #############################################
+            message: |
+              Welcome!
+              Please note: This system is demonstration use only!
+          timezone: America/Los_Angeles
+          snmp:
+            - community_name: public
+              access_control: ro
+          snmp_traphosts:
+            - 192.168.0.11
+          aggrs:
+          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 1, raid_size: 6, is_mirrored: false }
+          # referencing the nested variables causes a recurive error - keeping seperate for dev
+          inters:
+          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 192.168.0.212, netmask: 255.255.255.0 }
+
+          vservers:
+            - name: vs0
+              protocol:
+                - iscsi
+                - nfs
+                - nvme
+                # - cifs
+              lifs:
+              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.0.213, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.0.214, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 192.168.0.215, node: '{{ cluster_name }}-01', port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 192.168.0.1, metric: 20}
+              nameservers:
+              - 192.168.0.1
+              - 192.168.0.11
+              domains:
+              - lab.local
+              # cifs:
+              #   cifs_server_name: demo1vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: false
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled

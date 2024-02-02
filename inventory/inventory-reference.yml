@@ -199,8 +199,8 @@ all:
 
       hosts:
         demo1:
-          location:       CPOC - 4746 RTP Way, NC
-          contact:        "netapp-admins@demo.netapp.com"
+          location:       742 Evergreen Terrace
+          contact:        "spam@madlabber.com"
           motd:
             banner: |
               ################ TEST BANNER ################      
@@ -262,8 +262,8 @@ all:
                 nfsv41: disabled
 
         demo2:
-          location:       CPOC - 4746 RTP Way, NC
-          contact:        "netapp-admins@demo.netapp.com"
+          location:       742 Evergreen Terrace
+          contact:        "spam@madlabber.com"
           motd:
             banner: |
               ################ TEST BANNER ################      
@@ -325,8 +325,8 @@ all:
                 nfsv41: disabled
 
         demo3:
-          location:       CPOC - 4746 RTP Way, NC
-          contact:        "netapp-admins@demo.netapp.com"
+          location:       742 Evergreen Terrace
+          contact:        "bofh@madlabber.com"
           motd:
             banner: |
               ################ TEST BANNER ################      
