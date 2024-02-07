@@ -33,7 +33,7 @@ ansible-playbook playbooks/ots_host_prep.yml
 And individual host can be targeted with the limit (-l) parameter
 
 ```shell
-ansible-playbook playbooks/ots_host_prep.yml -l host01
+ansible-playbook playbooks/kvm_host_prep.yml -l host01
 ```
 
 ## Install ONTAP Select Deploy
