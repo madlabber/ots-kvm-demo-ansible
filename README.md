@@ -28,7 +28,7 @@ ansible-galaxy install -r requirements.yml
 ## Prepare the KVM hosts
 
 ```shell
-ansible-playbook playbooks/ots_host_prep.yml
+ansible-playbook playbooks/kvm_host_prep.yml
 ```
 And individual host can be targeted with the limit (-l) parameter
 
