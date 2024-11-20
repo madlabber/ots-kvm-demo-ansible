@@ -19,6 +19,9 @@
       name: "{{ rdo_repo_url }}"
       state: present
       disable_gpg_check: true
+    when: 
+      - rdo_repo_url is defined
+      - rdo_repo_url != ""
 
 
 # Install Dependancies
@@ -29,7 +32,7 @@
         - python3-devel
         - qemu-kvm
         - libvirt
-        - libvirt-devel
+      #  - libvirt-devel
         - virt-install
         - lshw
         - lsscsi
@@ -126,19 +129,25 @@
           </target>
         </pool>
 
+  # virsh pool-build select_pool
   - name: Build the storage pool
     virt_pool:
       command: build
       name: "{{storage_pool}}"
     ignore_errors: yes
+
+  # virsh pool-start select_pool
   - name: Activate the storage pool
     virt_pool:
       state: active
       name: "{{storage_pool}}"
+  
+  # virsh pool-autostart select_pool
   - name: Auto start the storage pool
     virt_pool:
       autostart: yes
       name: "{{storage_pool}}"
+
   - name: add volume to keep pool alive
     command:
       cmd: virsh vol-create-as --pool "{{storage_pool}}" --name keepalive --capacity 1g
@@ -146,23 +155,34 @@
     
 # create ovs bridge
 # This version assumes a dedicated mgmt port
-  - openvswitch.openvswitch.openvswitch_bridge:
-      bridge: "{{ ovs_bridge }}"
-      state: present
-  - openvswitch.openvswitch.openvswitch_bond:
-      bridge: "{{ ovs_bridge }}"
-      port: "{{ ovs_bond }}"
-      interfaces: "{{ ovs_bond_ports }}"
-      state: present
-    when: ovs_bond_ports | count > 1
-  - openvswitch.openvswitch.openvswitch_port:
-      bridge: "{{ ovs_bridge }}"
-      port: "{{ item }}"
-      state: present
+
+  # ovs-vsctl add-br br0
+#  - openvswitch.openvswitch.openvswitch_bridge:
+#      bridge: "{{ ovs_bridge }}"
+#      state: present
+  - name: Create OVS Bridge
+    command:
+      cmd: "ovs-vsctl --may-exist add-br {{ ovs_bridge }}"
+
+#  - openvswitch.openvswitch.openvswitch_bond:
+#      bridge: "{{ ovs_bridge }}"
+#      port: "{{ ovs_bond }}"
+#      interfaces: "{{ ovs_bond_ports }}"
+#      state: present
+#    when: ovs_bond_ports | count > 1
+
+  #ovs-vsctl add-port br0 ens33
+#  - openvswitch.openvswitch.openvswitch_port:
+#      bridge: "{{ ovs_bridge }}"
+#      port: "{{ item }}"
+#      state: present
+#    with_items: "{{ ovs_bond_ports }}"
+#    when: ovs_bond_ports | count == 1
+  - name: add port
+    command:
+      cmd: "ovs-vsctl add-port {{ovs_bridge }} {{item}}"
     with_items: "{{ ovs_bond_ports }}"
     when: ovs_bond_ports | count == 1
-
-
 
 # the openvswitch module does not appear to support managing interfaces
   - name: Set interface MTU
