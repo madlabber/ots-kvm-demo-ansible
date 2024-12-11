@@ -11,7 +11,7 @@ all:
         192.168.0.42:
         192.168.0.43:
       vars:
-        rdo_repo_url: "https://www.rdoproject.org/repos/rdo-release.el8.rpm"
+        rdo_repo_url: "http://trunk.rdoproject.org/rdo_release/rdo-release.el9s.rpm"
         virsh_pool_dev: "/dev/sdb"
         storage_pool: "select_pool"
         ovs_bridge: "br0"
@@ -27,7 +27,7 @@ all:
           deploy_hostname: "deploy"
           deploy_ip: 192.168.0.99
       vars:
-          deploy_package: ONTAPSELECT_9141RC1.raw.tgz
+          deploy_package: ONTAPSELECT_9151_NODAR.raw.tgz
           deploy_src: /root/Downloads
           deploy_dest: /opt/deploy
           deploy_password: P@ssw0rd

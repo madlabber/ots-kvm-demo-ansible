@@ -46,7 +46,7 @@
   # virt install the deploy package
   - name: run virt-install
     command:
-      cmd: virt-install --name=ontapdeploy --vcpus=2 --ram=4096 --os-type=linux --controller=scsi,model=virtio-scsi --disk path="{{deploy_dest}}/ONTAPdeploy.raw,device=disk,bus=scsi,format=raw" --network "type=bridge,source={{ovs_bridge}},model=virtio,virtualport_type=openvswitch" --console=pty --import --wait 0
+      cmd: virt-install --name=ontapdeploy --vcpus=2 --ram=4096 --os-type=linux --osinfo detect=on,require=off --controller=scsi,model=virtio-scsi --disk path="{{deploy_dest}}/ONTAPdeploy.raw,device=disk,bus=scsi,format=raw" --network "type=bridge,source={{ovs_bridge}},model=virtio,virtualport_type=openvswitch" --console=pty --import --wait 0
       creates: /etc/libvirt/qemu/ontapdeploy.xml
     delegate_to: "{{ deploy_host }}"
 
