@@ -9,7 +9,11 @@ all:
       hosts:
         192.168.0.41:
         192.168.0.42:
+          ovs_bond_ports: 
+            - "ens224"
         192.168.0.43:
+          ovs_bond_ports: 
+            - "ens224"
       vars:
         rdo_repo_url: "http://trunk.rdoproject.org/rdo_release/rdo-release.el9s.rpm"
         virsh_pool_dev: "/dev/sdb"
@@ -173,22 +177,27 @@ all:
           snmp_traphosts:
             - 192.168.0.11
           aggrs:
-          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 1, raid_size: 6, is_mirrored: false }
+          # - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 1, raid_size: 6, is_mirrored: true }
+          # - { name: "{{ cluster_name }}_02_SSD_1", node: "{{ cluster_name }}-02", disk_count: 1, raid_size: 6, is_mirrored: true }
           # referencing the nested variables causes a recurive error - keeping seperate for dev
           inters:
-          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 192.168.0.212, netmask: 255.255.255.0 }
+          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 192.168.0.213, netmask: 255.255.255.0 }
+          - { name: "{{ cluster_name }}-02_ic1", node: "{{ cluster_name }}-02", port: e0a, address: 192.168.0.214, netmask: 255.255.255.0 }
 
           vservers:
             - name: vs0
               protocol:
                 - iscsi
                 - nfs
-                - nvme
-                # - cifs
+                # - nvme
+                - cifs
               lifs:
-              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.0.213, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
-              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.0.214, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
-              - { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 192.168.0.215, node: '{{ cluster_name }}-01', port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.0.215, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nas_2,   service_policy: 'default-data-files', address: 192.168.0.216, node: "{{ cluster_name }}-02", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.0.217, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_2, service_policy: 'default-data-iscsi', address: 192.168.0.218, node: "{{ cluster_name }}-02", port: e0b, netmask: 255.255.255.0 }
+              #- { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 192.168.0.219, node: '{{ cluster_name }}-01', port: e0b, netmask: 255.255.255.0 }
+              #- { lif: data_nvme_2,  service_policy: 'default-data-nvme-tcp', address: 192.168.0.220, node: '{{ cluster_name }}-02', port: e0b, netmask: 255.255.255.0 }
               routes:
               - { destination: 0.0.0.0/0, gateway: 192.168.0.1, metric: 20}
               nameservers:
@@ -196,11 +205,11 @@ all:
               - 192.168.0.11
               domains:
               - lab.local
-              # cifs:
-              #   cifs_server_name: demo1vs0
-              #   ou:
-              #   domain: lab.local
-              #   domain_tunnel: false
+              cifs:
+                cifs_server_name: demo1vs0
+                ou:
+                domain: lab.local
+                domain_tunnel: false
               nfs:
                 nfsv3: enabled
                 nfsv4: enabled
