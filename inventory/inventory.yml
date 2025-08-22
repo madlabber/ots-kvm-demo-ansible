@@ -27,8 +27,8 @@ all:
           deploy_hostname: "deploy"
           deploy_ip: 192.168.0.99
       vars:
-          deploy_package: ONTAPSELECT_9151_NODAR.raw.tgz
-          deploy_src: /root/Downloads
+          deploy_package: ONTAPSELECT_9171RC1.raw.tgz
+          deploy_src: /home/admin
           deploy_dest: /opt/deploy
           deploy_password: P@ssw0rd
           deploy_netmask: 255.255.255.0
@@ -55,7 +55,7 @@ all:
         internal_network_vlan: 
         cluster_netmask: "255.255.255.0"
         cluster_gateway: "192.168.0.1"
-        cluster_ontap_image: "9.14.1RC1"
+        cluster_ontap_image: "9.17.1RC1"
         cluster_ntp:
           - "192.168.0.1"
         cluster_dns_ips:
@@ -79,7 +79,7 @@ all:
               capacityTB: 1.2
               host_name: 192.168.0.41
         demo2:
-          node_count: 1
+          node_count: 2
           cluster_name: "demo2"
           cluster_ip: "192.168.0.210"
           instance_type: "small"
@@ -87,13 +87,19 @@ all:
           kvm_hosts:
             - host_name: 192.168.0.42
               host_login: root
+            - host_name: 192.168.0.43
+              host_login: root
           cluster_nodes:
             - node_name: "{{ cluster_name }}-01"
               ipAddress: 192.168.0.211
               storage_pool: select_pool
-              capacityTB: 1.2
+              capacityTB: 2.4
               host_name: 192.168.0.42
-
+            - node_name: "{{ cluster_name }}-02"
+              ipAddress: 192.168.0.212
+              storage_pool: select_pool
+              capacityTB: 2.4
+              host_name: 192.168.0.43
     ontapclusters:
       vars:
         ansible_connection: local
