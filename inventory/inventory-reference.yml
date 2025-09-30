@@ -33,6 +33,14 @@ all:
         ovs_bond_ports: 
           - "ens2f0"
           - "ens2f1"
+
+    vcenter: # when deploying components to VMware vCenter
+      hosts:
+        labvc01:
+          vcenter_address: 192.168.123.20
+          #vcenter_username: "administrator@demo.local"
+          #vcenter_password: "P@ssw0rd"
+
     deployservers:
       hosts:
         deploy:
@@ -45,6 +53,17 @@ all:
           ovs_bridge: br0
           deploy_hostname: "deploy2"
           deploy_ip: 10.61.102.198
+        # VMware Example:
+        deployvmw: 
+          deploy_ip: 192.168.123.197
+          ovf_file: ../files/ONTAPSELECT_9171RC1.ova
+          deploy_vcenter: labvc01
+          deploy_host: 192.168.123.48
+          vcenter_datacenter: Datacenter
+          vcenter_cluster: Cluster
+          vm_datastore: TestVMs
+          ovf_networks: 
+            'ONTAP Select Deploy VM Network': 'VM Network'
       vars:
           deploy_package: ONTAPSELECT_9141RC1.raw.tgz
           deploy_src: /poc/bin
@@ -80,6 +99,7 @@ all:
         cluster_dns_domains:
           - "cpoc.local"
       hosts:
+
         demo1:
           node_count: 4
           cluster_name: "demo1"

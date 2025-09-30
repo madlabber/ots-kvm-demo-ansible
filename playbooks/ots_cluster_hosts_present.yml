@@ -7,7 +7,7 @@
 # 
 #######################################################
 ---
-- name: Power off ONTAP Select cluster 
+- name: Add hosts to ONTAP Select Deploy
   hosts: selectclusters
   gather_facts: false
   serial: 1

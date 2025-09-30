@@ -1,0 +1,78 @@
+# Install ONTAP Select Deploy VM on VMware
+# #######################################################
+---
+- hosts: deployservers
+  gather_facts: false
+  name: Build the ONTAP Deploy VM on VMware
+  vars_files:
+    - ../vars/credentials.yml
+  tasks:
+  - name: parse variables
+    set_fact:
+      vcenter_address: "{{ hostvars[deploy_vcenter]['vcenter_address'] }}"
+      vcenter_username: "{{ hostvars[deploy_vcenter]['vcenter_username'] | default(vcenter_username) }}"
+      vcenter_password: "{{ hostvars[deploy_vcenter]['vcenter_password'] | default(vcenter_password) }}"
+      vcenter_datacenter: "{{ vcenter_datacenter | default('ha-datacenter') }}"
+      vcenter_cluster: "{{ vcenter_cluster | default('') }}"
+      ovf_properties: 
+        password: "{{ deploy_password }}"
+        product_company: "{{ deploy_company | default('company') }}"
+        proxy_url: "{{ deploy_proxy | default('') }}"
+        ipAddress: "{{ deploy_ip }}"
+        netMask: "{{ deploy_netmask }}"
+        gateway: "{{ deploy_gateway }}"
+        hostName: "{{inventory_hostname}}"
+        primaryDNS: "{{ deploy_dns1 }}"
+        secondaryDNS: "{{ deploy_dns2 }}"
+        searchDomains: "{{ deploy_search_domains }}"
+
+  - name: debug variables
+    debug:
+      msg: |
+        vcenter_address: {{ vcenter_address }}
+        vcenter_username: {{ vcenter_username }}
+        vcenter_password: {{ vcenter_password }}
+        vcenter_datacenter: {{ vcenter_datacenter }}
+        vcenter_cluster: {{ vcenter_cluster }}
+        vm_datastore: {{ vm_datastore }}
+        ovf_file: {{ ovf_file }}
+        ovf_networks: {{ ovf_networks }}
+        ovf_properties: {{ ovf_properties }}
+        password: "{{ deploy_password }}"
+        product_company: "{{ deploy_company | default('company') }}"
+        proxy_url: "{{ deploy_proxy | default('') }}"
+        ipAddress: "{{ deploy_ip }}"
+        netMask: "{{ deploy_netmask }}"
+        gateway: "{{ deploy_gateway }}"
+        hostName: "{{inventory_hostname}}"
+        primaryDNS: "{{ deploy_dns1 }}"
+        secondaryDNS: "{{ deploy_dns2 }}"
+        searchDomains: "{{ deploy_search_domains }}"
+
+  - name: Deploy OVF file
+    vmware_deploy_ovf:
+      hostname: '{{ vcenter_address }}'
+      username: '{{ vcenter_username }}'
+      password: '{{ vcenter_password }}'
+      validate_certs: no
+      datacenter: '{{ vcenter_datacenter }}'
+      cluster: '{{ vcenter_cluster }}'
+      datastore: "{{vm_datastore}}"
+      name: "{{inventory_hostname}}"
+      ovf: '{{ ovf_file }}'
+      disk_provisioning: thin
+      power_on: yes
+      wait_for_ip_address: false
+      networks: "{{ovf_networks}}"
+      inject_ovf_env: true
+      properties: "{{ovf_properties}}"
+    delegate_to: localhost
+    retries: 10
+    delay: 60
+    register: result
+    until: result is succeeded
+    when: ovf_file is defined and ovf_file != ''
+    
+
+
+

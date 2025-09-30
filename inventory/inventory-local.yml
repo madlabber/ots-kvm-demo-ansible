@@ -1,0 +1,389 @@
+all:
+  hosts:
+  vars:
+    ansible_connection: ssh
+    ansible_user: root
+    ansible_ssh_pass: P@ssw0rd
+  children:
+    kvmhosts:
+      hosts:
+        192.168.123.29:
+      vars:
+        virsh_pool_dev: "/dev/nvme0n1p4"
+        storage_pool: "select_pool"
+        ovs_bridge: "br0"
+        ovs_bond: "bond0"
+        ovs_bond_mtu: "9000"
+        ovs_bond_ports: 
+          - "enp2s0"
+    
+    vcenter: # when deploying to VMware vCenter
+      hosts:
+        labvc01:
+          vcenter_address: 192.168.123.20
+          #vcenter_username: "administrator@demo.local"
+          #vcenter_password: "P@ssw0rd"
+    deployservers:
+      hosts:
+        deploy89: 
+          deploy_ip: 192.168.123.89
+          ovf_file: ../files/ONTAPSELECT_9171RC1.ova
+          deploy_vcenter: labvc01
+          deploy_host: 192.168.123.48
+          vcenter_datacenter: Datacenter
+          vcenter_cluster: Cluster
+          vm_datastore: TestVMs
+          ovf_networks: 
+            'ONTAP Select Deploy VM Network': 'VM Network'
+        deploy199:
+          deploy_host: 192.168.123.29
+          ovs_bridge: br0
+          deploy_hostname: "deploy9141"
+          deploy_ip: 192.168.123.199
+          deploy_package: ONTAPSELECT_9141X141.raw.tgz
+          deploy_src: /home/admin/Downloads
+          deploy_dest: /opt/deploy
+      vars:
+          deploy_password: P@ssw0rd
+          deploy_netmask: 255.255.255.0
+          deploy_gateway: 192.168.123.1
+          deploy_dns1: 192.168.123.1
+          deploy_dns2: 192.168.123.21
+          deploy_search_domains: "" # space separated list
+          deploy_company: "Madlabber"  # for ASUP
+          deploy_proxy_url: ""    # for ASUP
+          deploy_boot_delay: 1 # minutes to wait for vm to startup
+    selectclusters:
+      vars:
+        deploy_hostname: deploy199
+        use_vcenter: false
+        hypervisor: KVM
+        kvm_hosts:
+          - host_name: 192.168.123.29
+            host_login: root
+        host_kvm_password: "P@ssw0rd"
+        ontap_pwd: "P@ssw0rd"
+        mgt_network: "br0"
+        data_network: "br0"
+        internal_network: "br0"
+        internal_network_vlan: 
+        cluster_netmask: "255.255.255.0"
+        cluster_gateway: "192.168.123.1"
+        cluster_ontap_image: "9.14.1X14"
+        cluster_ntp:
+          - "192.168.123.1"
+        cluster_dns_ips:
+          - "10.61.102.5"
+        cluster_dns_domains:
+          - "schlab.pri"
+      hosts:
+        demo1vmw:   
+          node_count: 1
+          hypervisor: ESX
+          use_vcenter: true
+          vcenter_name: 192.168.123.20
+          vcenter_username: "administrator@vsphere.local"
+          vcenter_password: "P@ssw0rd"
+          deploy_hostname: deploy89
+          cluster_name: demo1vmw
+          cluster_ip: 192.168.123.90
+          cluster_netmask: "255.255.255.0"
+          cluster_gateway: "192.168.123.1"
+          cluster_ontap_image: "9.17.1RC1"
+          instance_type: small
+          data_network: "VM Network"
+          mgt_network: "VM Network"
+          cluster_ntp:
+            - "192.168.123.1"
+          cluster_dns_ips:
+            - "10.61.102.5"
+          cluster_dns_domains:
+            - "schlab.pri"
+          esxi_hosts:
+            - host_name: esx48.schlab.pri
+          host_esx_password: "P@ssw0rd"
+          cluster_nodes:
+            - node_name: "{{ cluster_name }}-01"
+              ipAddress: 192.168.123.91
+              storage_pool: TestVMs
+              capacityTB: 1.2
+              host_name: esx48.schlab.pri
+        demo1:
+          node_count: 1
+          cluster_name: "demo1"
+          cluster_ip: "192.168.123.200"
+          instance_type: "small"
+          cpu_reservation_percentage: 25
+          kvm_hosts:
+            - host_name: 192.168.123.29
+              host_login: root
+          cluster_nodes:
+            - node_name: "{{ cluster_name }}-01"
+              ipAddress: 192.168.123.201
+              storage_pool: select_pool
+              capacityTB: 1.2
+              host_name: 192.168.123.29
+              # swraid: true
+
+        # demo2:
+        #   deploy_hostname: deploy2
+        #   node_count: 4
+        #   cluster_name: "demo2"
+        #   cluster_ip: "10.61.102.120"
+        #   instance_type: "small"
+        #   kvm_hosts:
+        #     - host_name: 10.61.102.209
+        #       host_login: root
+        #     - host_name: 10.61.102.210
+        #       host_login: root
+        #     - host_name: 10.61.102.211
+        #       host_login: root
+        #     - host_name: 10.61.102.212
+        #       host_login: root
+        #   cluster_nodes:
+        #     - node_name: "{{ cluster_name }}-01"
+        #       ipAddress: 10.61.102.121
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.209
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-02"
+        #       ipAddress: 10.61.102.122
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.210
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-03"
+        #       ipAddress: 10.61.102.123
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.211
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-04"
+        #       ipAddress: 10.61.102.124
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.212
+        #       swraid: true
+
+
+        # test140:
+        #   node_count: 4
+        #   cluster_name: "test140"
+        #   cluster_ip: "10.61.102.140"
+        #   instance_type: "small"
+        #   kvm_hosts:
+        #   - host_name: 10.61.102.205
+        #     host_login: root
+        #   - host_name: 10.61.102.206
+        #     host_login: root
+        #   - host_name: 10.61.102.207
+        #     host_login: root
+        #   - host_name: 10.61.102.208
+        #     host_login: root
+        #   cluster_nodes:
+        #     - node_name: "{{ cluster_name }}-01"
+        #       ipAddress: 10.61.102.141
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.205
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-02"
+        #       ipAddress: 10.61.102.142
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.206
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-03"
+        #       ipAddress: 10.61.102.143
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.207
+        #       swraid: true
+        #     - node_name: "{{ cluster_name }}-04"
+        #       ipAddress: 10.61.102.144
+        #       storage_pool: select_pool
+        #       capacityTB: 1.2
+        #       host_name: 10.61.102.208
+        #       swraid: true
+
+    select:
+      vars:
+        ansible_connection: local
+      hosts:
+        demo1:
+          location:       CPOC - 4746 RTP Way, NC
+          contact:        "netapp-admins@demo.netapp.com"
+          motd:
+            banner: |
+              ################ TEST BANNER ################      
+              # This system is currently in testing state #
+              #############################################
+            message: |
+              Welcome!
+              Please note: This system is not ready for production yet!
+          timezone: America/Los_Angeles
+          snmp:
+            - community_name: public
+              access_control: ro
+          snmp_traphosts:
+            - 192.168.123.21
+          aggrs:
+          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 1, raid_size: 6, raid_type: raid0, is_mirrored: false }
+          # referencing the nested variables causes a recurive error - keeping seperate for dev
+          inters:
+          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 192.168.123.202, netmask: 255.255.255.0 }
+
+          vservers:
+            - name: vs0
+              protocol:
+                - iscsi
+                - nfs
+                - nvme
+              lifs:
+              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 192.168.123.203, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 192.168.123.204, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 192.168.123.205, node: '{{ cluster_name }}-01', port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 192.168.123.1, metric: 20}
+              nameservers:
+              - 192.168.123.1
+              - 192.168.123.21
+              domains:
+              - schlab.pri
+              # cifs:
+              #   cifs_server_name: test20vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: true
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled
+
+        test130:
+          location:       CPOC - 4746 RTP Way, NC
+          contact:        "netapp-admins@demo.netapp.com"
+          motd:
+            banner: |
+              ################ TEST BANNER ################      
+              # This system is currently in testing state #
+              #############################################
+            message: |
+              Welcome!
+              Please note: This system is not ready for production yet!
+          timezone: America/Los_Angeles
+          snmp:
+            - community_name: public
+              access_control: ro
+          snmp_traphosts:
+            - 10.61.102.5
+          aggrs:
+          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 6, raid_size: 6, raid_type: raid4, is_mirrored: true }
+          - { name: "{{ cluster_name }}_02_SSD_1", node: "{{ cluster_name }}-02", disk_count: 6, raid_size: 6, raid_type: raid4, is_mirrored: true }
+          inters:
+          - { name: "{{ cluster_name }}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 10.61.102.135, netmask: 255.255.255.0 }
+          - { name: "{{ cluster_name }}-02_ic1", node: "{{ cluster_name }}-02", port: e0a, address: 10.61.102.136, netmask: 255.255.255.0 }
+
+          vservers:
+            - name: vs0
+              protocol:
+                - iscsi
+                - nfs
+                # - cifs
+              lifs:
+              - { lif: data_nas_1,   service_policy: 'default-data-files', address: 10.61.102.180, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nas_2,   service_policy: 'default-data-files', address: 10.61.102.181, node: "{{ cluster_name }}-02", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi', address: 10.61.102.183, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_2, service_policy: 'default-data-iscsi', address: 10.61.102.184, node: "{{ cluster_name }}-02", port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 10.61.102.1, metric: 20}
+              nameservers:
+              - 10.61.102.5
+              domains:
+              - cpoc.local
+              # cifs:
+              #   cifs_server_name: test20vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: true
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled
+                vstorage: disabled
+            - name: gizmo
+              protocol:
+                # - iscsi
+                # - nfs
+                - nvme
+              lifs:
+              - { lif: data_nvme_1, service_policy: 'default-data-nvme-tcp', address: 10.61.102.185, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nvme_2, service_policy: 'default-data-nvme-tcp', address: 10.61.102.186, node: "{{ cluster_name }}-02", port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 10.61.102.1, metric: 20}
+              nameservers:
+              - 10.61.102.5
+              domains:
+              - cpoc.local
+              # cifs:
+              #   cifs_server_name: test20vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: true
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled
+                vstorage: disabled
+
+        test150:
+          location:       CPOC - 4746 RTP Way, NC
+          contact:        "netapp-admins@demo.netapp.com"
+          motd:
+            banner: |
+              ################ TEST BANNER ################      
+              # This system is currently in testing state #
+              #############################################
+            message: |
+              Welcome!
+              Please note: This system is not ready for production yet!
+          timezone: America/Los_Angeles
+          snmp:
+            - community_name: public
+              access_control: ro
+          snmp_traphosts:
+            - 10.61.102.5
+          aggrs:
+          - { name: "{{ cluster_name }}_01_SSD_1", node: "{{ cluster_name }}-01", disk_count: 5, raid_size: 6, raid_type: raid4, is_mirrored: false }
+          inters:
+          - { name: "{{ cluster_name}}-01_ic1", node: "{{ cluster_name }}-01", port: e0a, address: 10.61.102.152, netmask: 255.255.255.0 }
+
+          vservers:
+            - name: vs0
+              protocol:
+                - iscsi
+                - nfs
+                - nvme
+                # - cifs
+              lifs:
+              - { lif: data_nas_1,   service_policy: 'default-data-files',    address: 10.61.102.190, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_iscsi_1, service_policy: 'default-data-iscsi',    address: 10.61.102.191, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              - { lif: data_nvme_1,  service_policy: 'default-data-nvme-tcp', address: 10.61.102.192, node: "{{ cluster_name }}-01", port: e0b, netmask: 255.255.255.0 }
+              routes:
+              - { destination: 0.0.0.0/0, gateway: 10.61.102.1, metric: 20}
+              nameservers:
+              - 10.61.102.5
+              domains:
+              - cpoc.local
+              # cifs:
+              #   cifs_server_name: test20vs0
+              #   ou:
+              #   domain: lab.local
+              #   domain_tunnel: true
+              nfs:
+                nfsv3: enabled
+                nfsv4: enabled
+                nfsv41: disabled
+                vstorage: disabled
+
